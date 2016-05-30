@@ -1,6 +1,17 @@
 #!/usr/bin/env python
 # coding=utf-8
+import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
 import os
+import re
+sys.path.insert(0, '/opt/itangyuan/itangyuan.com')
+EVVIRONMENT_VARIABLE = 'RICEBALL_CONFIG_FILE'
+env = 'local'
+os.environ[
+    EVVIRONMENT_VARIABLE] = '/opt/itangyuan/itangyuan.com/conf/%s/settings.conf' % env
+
+from riceball.storage.client import redis, mysql
 
 urlCounts = 0
 fileCounts = 0

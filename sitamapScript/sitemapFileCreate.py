@@ -11,7 +11,7 @@ env = 'local'
 os.environ[
     EVVIRONMENT_VARIABLE] = '/opt/itangyuan/itangyuan.com/conf/%s/settings.conf' % env
 
-from riceball.storage.client import redis, mysql
+# from riceball.storage.client import redis, mysql
 
 urlCounts = 0
 fileCounts = 0
@@ -76,20 +76,20 @@ tree_xml_url = 'http://www.itangyuan.com/sitemap/%s.xml'
 
 
 class XmlTree():
-    # xml索引
-    tree_xml_url = 'http://www.itangyuan.com/sitemap/%s'
-    # 内容结构
-    tplTreeTop = '<?xml version="1.0" encoding="utf-8"?>\n'
-    sitemapindexBegin = '<sitemapindex>\n'
-    tplTreeContent = '<loc>%s</loc>\n'
-    sitemapindexEnd = '</sitemapindex>'
-    sitemap = '<sitemap>\n%s</stiemap>'
 
     def __init__(self, treeXmlFile):
         self.filename = treeXmlFile
         self.file = open(self.filename, 'a+')
         self.file.write(self.tplTreeTop)
         self.file.write(sitemapindexBegin)
+        # xml索引
+        self.tree_xml_url = 'http://www.itangyuan.com/sitemap/%s'
+        # 内容结构
+        self.tplTreeTop = '<?xml version="1.0" encoding="utf-8"?>\n'
+        self.sitemapindexBegin = '<sitemapindex>\n'
+        self.tplTreeContent = '<loc>%s</loc>\n'
+        self.sitemapindexEnd = '</sitemapindex>'
+        self.sitemap = '<sitemap>\n%s</stiemap>'
 
     def fileInsert(self, date):
         date = tree_xml_url % date
@@ -106,14 +106,14 @@ class XmlTree():
 # a.fileClose()
 
 class XmlFile():
-    tpl = '<?xml version="1.0" encoding="utf-8"?>\n'
-    urlsetBegin = '<urlset>\n'
-    urlsetEnd = '</urlset>'
-    url = '<url>\n%s</url>'
-    loc = '<loc>%s</loc>\n'
-    changefreq = '<changefreq>%s</changefreq>\n'
 
     def __init__(self, folder, filepre, urlLen, fileCounts, freq):
+        self.tpl = '<?xml version="1.0" encoding="utf-8"?>\n'
+        self.urlsetBegin = '<urlset>\n'
+        self.urlsetEnd = '</urlset>'
+        self.url = '<url>\n%s</url>'
+        self.loc = '<loc>%s</loc>\n'
+        self.changefreq = '<changefreq>%s</changefreq>\n'
         self.setFolder(folder)
         self.filepre = filepre
         self.urlLen = urlLen
@@ -247,9 +247,10 @@ class ControlPro():
         self.c_fileCounts = fileCounts
         self.c_freq = freq
 
-    xmlTree = XmlTree(self.c_treeXmlFile)
-    xmlFile = XmlFile(self.c_folder, self.c_filepre, self.c_urlLen, self.c_fileCounts, self.c_freq)
-    dateUrl = DateUrl()
+        self.xmlTree = XmlTree(self.c_treeXmlFile)
+        self.xmlFile = XmlFile(self.c_folder, self.c_filepre, self.c_urlLen, self.c_fileCounts, self.c_freq)
+        self.dateUrl = DateUrl()
+
 
     def loopMain(self, key, table):
 
@@ -299,27 +300,27 @@ class ControlPro():
                     self.xmlFile.loop(url)
 
     def unLoopMain(self, key, table):
+        self.xmlFile.setStep(1)
+        self.c_count = self.dateUrl.searchCount(key, table, self.dateUrl.unsign_config)
+        self.c_loop = self.c_count / self.dateUrl.offset + 1
 
-            self.c_count = self.dateUrl.searchCount(key, table, self.dateUrl.unsign_config)
-            self.c_loop = self.c_count / self.dateUrl.offset + 1
+        while self.c_loop:
+            limit = self.dateUrl.limit()
+            sqlBookContentList = self.dateUrl.searchContent(key, table, self.dateUrl.unsign_config, limit)
+            self.dateUrl.limitCount()
+            for date in sqlBookContentList:
+                date = self.dateUrl.dateToUse(date)
+                url = self.dateUrl.getIdsUrl(date)
+                urlCatalogue = self.dateUrl.getCatalogueUrl(date)
 
-            while self.c_loop:
-                limit = self.dateUrl.limit()
-                sqlBookContentList = self.dateUrl.searchContent(key, table, self.dateUrl.unsign_config, limit)
-                self.dateUrl.limitCount()
-                for date in sqlBookContentList:
-                    date = self.dateUrl.dateToUse(date)
-                    url = self.dateUrl.getIdsUrl(date)
-                    urlCatalogue = self.dateUrl.getCatalogueUrl(date)
+                if self.xmlFile.fileCount > self.xmlFile.fileCounts - 1:
+                    break
 
-                    if self.xmlFile.fileCount > self.xmlFile.fileCounts - 1:
-                        break
-
-                    if self.xmlFile.fileCount < self.xmlFile.fileCounts:
-                        # if not self.xmlFile.getStep():
-                        #     self.xmlFile.setStep(1)
-                        self.xmlFile.loop(url)
-                        self.xmlFile.loop(urlCatalogue)
+                if self.xmlFile.fileCount < self.xmlFile.fileCounts:
+                    # if not self.xmlFile.getStep():
+                    #     self.xmlFile.setStep(1)
+                    self.xmlFile.loop(url)
+                    self.xmlFile.loop(urlCatalogue)
 
     def createTree(self):
         while self.xmlFile.filesname[0]:
@@ -332,7 +333,7 @@ class ControlPro():
 
 folder = ['agree_book', 'normal_book']
 filepre = ['agree', 'normal']
-urlen = 3
+urlLen = 3
 fileCounts = 7
 freq = frequency[3]
 agreeCount = 4

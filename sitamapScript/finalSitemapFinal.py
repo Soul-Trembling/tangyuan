@@ -32,10 +32,10 @@ frequency = ("always", "hourly", "daily", "weekly", "monthly", "yearly")
 
 
 ##############    脚本运行参数设置
-folder = ['sitemap/agree_book', 'sitemap/normal_book']
-filepre = ['agree', 'normal']
-urlLen = 300
-fileCounts = 500
+folder = ['agree_book', 'normal_book']                      # 文件目录
+filepre = ['agree', 'normal']                               # 文件前缀
+urlLen = sitemapCount                                       # 数据条数限制
+fileCounts = fileLimitCount                                 # 文件个数上限
 freq = frequency[3]
 
 
@@ -59,6 +59,7 @@ urlset:相对于前5个标签的父标签
 
 '''
 
+# ==========================  文件路径索引类,sitemap文件
 
 class XmlTree():
     def __init__(self, treeXmlFile):
@@ -67,7 +68,7 @@ class XmlTree():
         self.sitemapindexBegin = '<sitemapindex>\n'
         self.tplTreeContent = '<loc>%s</loc>\n'
         self.sitemapindexEnd = '</sitemapindex>'
-        self.sitemap = '<sitemap>\n%s</sitemap>\n'
+        self.sitemap = '<sitemap>\n%s</sitemap>'
 
         self.filename = treeXmlFile
         self.file = open(self.filename, 'a+')
@@ -85,9 +86,8 @@ class XmlTree():
         self.file.close()
 
 
-# a = xmlTree(treeXmlFile)
-# a.fileInsert('123456')
-# a.fileClose()
+
+# ==========================  数据存储文件类
 
 class XmlFile():
     def __init__(self, folder, filepre, urlLen, fileCounts, freq):
@@ -171,6 +171,8 @@ class XmlFile():
                 os.mkdir(d)
 
 
+# ==========================  数据查询处理类
+
 class DateUrl():
     def __init__(self):
         self.offset = sql_count
@@ -227,6 +229,53 @@ class DateUrl():
         return mysql.query(self.select_count % (key, table, config))
 
 
+# =============================    大文件处理
+limit_size = 10 * 1024 * 1024
+# files = ['./agree/', './normal/']
+files = ['./agree_book', './normal_book']
+
+def get_dir_file(file_dir, file):
+    return os.path.join(file_dir, file)
+
+
+def file_size(file_dir, file):
+    get_path = get_dir_file(file_dir, file)
+    return os.stat(get_path).st_size
+
+
+def filedir_count(file_dir):
+    return len(os.listdir(file_dir))
+
+
+def get_file_size(file_dir):
+    try:
+        loop = 0
+        file_count = filedir_count(file_dir)
+        for file in os.listdir(file_dir):
+            if file_size(file_dir, file) > limit_size:
+                print "error: the size of %s file is above limit" % (file)
+                del_file(get_dir_file(file_dir, file))
+            if loop > file_count:
+                break
+            loop += 1
+    except:
+        print 'get_file_size error'
+
+def del_file(dir_file):
+    print dir_file
+    os.remove(dir_file)
+
+def control_file():
+    try:
+        for i in files:
+            get_file_size(i)
+    except:
+        print 'control_file error'
+
+
+
+# ==============================    数据处理主流程
+os.mkdir('sitemap')
 sqldate = DateUrl()
 unsqldate = DateUrl()
 xfile = XmlFile(folder, filepre, urlLen, fileCounts, freq)
@@ -345,8 +394,13 @@ def unsignloop(key, table):
     xfile.fileCounts -= xfile.fileCount - 1
     xfile.fileCount = 1
 
+
+# ==========================  数据传递,跑样例
+
 key = ['id', 'id']
 table = ['book', 'chapter']
 signloop(key, table)
 unsignloop(key[0], table[0])
+xtree.fileClose()
 
+control_file()

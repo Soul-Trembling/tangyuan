@@ -56,8 +56,8 @@ require(['jquery', 'avalon', 'tym'], function($, avalon, TYM) {
         postParams.count = searchModel.pager.count;
         postParams.signed=postParams.signed == -1? null : postParams.signed
 
-        var apiUrl = '/manage/core/book/search.json';
-        var directRequestUrl = '/manage/core/book/search.html';
+        var apiUrl = '/search.json';
+        var directRequestUrl = '/search.html';
 
         $.get(apiUrl, postParams, TYM.genSuccCb(function(result) {
             var resultData = result.data;
@@ -75,7 +75,7 @@ require(['jquery', 'avalon', 'tym'], function($, avalon, TYM) {
     }
 
     // 新的搜索
-    function clickSearch() {
+    /*function clickSearch() {
         loadData(fill_params(searchModel, {}), 0);
     }
 
@@ -131,7 +131,7 @@ require(['jquery', 'avalon', 'tym'], function($, avalon, TYM) {
         $.post(url, TYM.genSuccCb(function(result) {
             book.signed = result.data.signed;
         }), 'json');
-    }
+    }*/
 
     function showBookShareRecord(book) {
         var widgetUrl = '/manage/core/book/widget_share_stats.html';

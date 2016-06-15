@@ -1,0 +1,370 @@
+# -*- coding: utf-8 -*-
+
+import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
+import os
+import sys
+import datetime
+import re
+
+sys.path.insert(0, '/opt/itangyuan/itangyuan.com')
+ENVIRONMENT_VARIABLE = 'RICEBALL_CONFIG_FILE'
+env = 'local'
+
+os.environ[
+    ENVIRONMENT_VARIABLE] = '/opt/itangyuan/itangyuan.com/conf/%s/settings.conf' % env
+
+from ricebag.model.book import Book
+
+import time
+import traceback
+from collections import OrderedDict
+
+from bottle import request
+
+from ricebag.conf import common as common_config
+from ricebag.model.chapter import Chapter
+from ricebag.model.comment import Comment, BookCommentZSet, BookCommentHeatZSet
+from ricebag.tools import find_informal_name_part
+from ricebag.tools.file import FileObject, PublicFileKeyTemplateConst, \
+    QiniuPublicFileProcessor
+from ricebag.tools.qetag import get_data_qetag
+from ricebag.typ import redirect_typ_pool
+from riceball.options import settings
+from riceball.storage import storage
+from riceball.storage.client import mysql, redis, SQLErrorCode, SQLError
+from riceball.storage.model import ModelObject, ModelViewList, ModelSortedSet, \
+    Counter, Rank
+from riceball.storage.xmodel import XModelObject, model_config, xfield
+from riceball.storage.xmodel.engine import CachedEngine
+from riceball.tools import text, cached
+from riceball.tools.image import ImageUtil
+
+
+__author__ = 'ocean'
+
+FULLUPDATEDAY = 1073741823
+FULLDAYS = 30
+
+
+# 排行榜表类
+@storage()
+class Charts(XModelObject):
+    """
+    :var update_status: 30天更新状态,二进制数
+    :var sign_status: 书籍签约状态
+    :var updateDay: 30天内更新天数
+    :var updateFreq: 书籍更新频率
+    :var serialUpdate: 书籍连更天数
+    :var lastUpdateTime: 书籍最新更新时间
+    :var govTag: 官方标签
+    :var tag: 标签
+    :var deleted: 标签
+    """
+    model_config = model_config('id', auto_creatable=True)
+    model_engine = CachedEngine.mysql_object(table='charts')
+
+    id = xfield.int(None)
+    update_status = xfield.int(None)
+    updateDay = xfield.int(None)
+    updateFreq = xfield.float(None)
+    serialUpdate = xfield.int(None)
+    lastUpdateTime = xfield.datetime(datetime.datetime.now)
+    govTag = xfield.int(None)
+    tag = xfield.int(None)
+    deleted = xfield.int(None)
+
+
+
+
+    def add_update_day(self):
+        # 有更新,更新天数变化
+        self.updateDay = (self.updateDay << 1) + 1
+
+    def update_day_update(self):
+        # 没有更新,更新天数变化
+        #self.updateDay = self.updateDay << 1
+        self.updateDay <<= 1
+
+    def get_update_day(self):
+        # 获取更新天数
+        temp = self.updateDay
+        count = 0
+        while temp:
+            if temp & 1:
+                count += 1
+            temp >>= 1
+
+        return count
+
+    def freq_update(self):
+        # 刷新更新频率
+        self.updateFreq = getUpdateDay(self) / FULLDAYS
+
+    def serial_update(self, chapter):
+        # 连续更新处理
+        if chapter.publishTime.day - self.lastUpdateTime.day <= 1:
+            self.serialUpdate += 1
+        else:
+            self.serialUpdate = 0
+
+    # outline_file = xfield.str('')
+    # outline_etag = xfield.str('')
+    # create_time = xfield.datetime(datetime.datetime.now)
+    # modify_time = xfield.datetime(datetime.datetime.now)
+    #
+    # @property
+    # @cached
+    # def outline_url(self):
+    #     if not self.outline_file:
+    #         return ''
+    #     return FileObject(self.outline_file).gen_url()
+    #
+    # @property
+    # @cached
+    # def outline(self):
+    #     return FileObject(self.outline_file).data
+    #
+    # def gen_outline_file_id(self):
+    #     file_id = QiniuPublicFileProcessor.gen_file_id(
+    #         PublicFileKeyTemplateConst.BOOK_OUTLINE_FILE, self.id, "json")
+    #     return file_id
+    #
+    # def update_file_content(self, file_content):
+    #     if not file_content:
+    #         return False
+    #     new_outline_etag = get_data_qetag(file_content)
+    #     if new_outline_etag == self.outline_etag:
+    #         return True
+    #     outline_file_id = self.gen_outline_file_id()
+    #     if QiniuPublicFileProcessor.upload(file_content, outline_file_id):
+    #         self.outline_file = outline_file_id
+    #         self.outline_etag = new_outline_etag
+    #         self.modify_time = datetime.datetime.now()
+    #         cached.clear(self, 'outline', 'outline_url')
+    #         return True
+    #     return False
+    #
+    # def dump_basic(self, *ext):
+    #     return self.dumps('outline_url', 'outline_etag', *ext)
+
+# 排行榜表类
+class Charts__(XModelObject):
+    """
+    :var update_status: 30天更新状态,二进制数
+    :var sign_status: 书籍签约状态
+    :var updateDay: 30天内更新天数
+    :var updateFreq: 书籍更新频率
+    :var serialUpdate: 书籍连更天数
+    :var lastUpdateTime: 书籍最新更新时间
+    :var govTag: 官方标签
+    :var tag: 标签
+    """
+    _key_field = 'id'
+    _ser_attrs = ['update_status', 'sign_status', 'updateDay', 'serialUpdate', 'updateFreq', 'lastUpdateTime',
+                  'tag', 'govTag']
+    _complex_attrs = ['attachment_dict']
+    _table = 'charts'
+    _delete_mark = 'deleted'
+    _use_cache = True
+    _use_cache_hash = False
+    _use_db = True
+    _allow_auto_create = False
+
+    CRON_RELEASE = 0x08
+    UNCRON_RELEASE = 0xF7
+    PUBLISHED = 0x04
+    UNPUBLISHED = 0xFB
+    REVIEWING = 0x02
+    REVIEWED = 0xFD
+    REFUSED = 0x01
+    PASSED = 0xFE
+
+    _default_value = {
+        'update_status': 0,
+        'sign_status': 0,
+        'updateDay': 0,
+        'serialUpdate': 0,
+        'word_count': 0,
+        'updateFreq': 0.00,
+        'lastUpdateTime': datetime.datetime.now,
+        'govTag': 0,
+        'tag': 0
+    }
+
+
+# 获取更新表中所有书籍id
+def book_ids_list():
+    sql = 'SELECT id FROM charts'
+    return [i.values()[0] for i in mysql.query(sql)]
+
+# chart = Charts.get(6342)
+
+# 通过推送消息,获取书籍对象和章节对象
+def getDateFromCatch(msg):
+    chapter_id = int(msg)
+    chapter = Chapter.get(chapter_id)
+
+    def getBookInfo():
+        book_info = chapter.book if chapter else None
+        return book_info
+
+    def getChapterInfo():
+        return chapter
+
+    return getBookInfo(), getChapterInfo()
+
+
+
+# 有更新,更新天数变化
+def addUpdateDay(book):
+    book.updateDay = (book.updateDay << 1) + 1
+
+
+# 没有更新,更新天数变化
+def updateDayUpdate(book):
+    book.updateDay = book.updateDay << 1
+
+
+# 获取更新天数
+def getUpdateDay(book):
+    temp = book.updateDay
+    count = 0
+    while temp:
+        if temp & 1:
+            count += 1
+        temp = temp >> 1
+
+    return count
+
+
+# 刷新更新频率
+def freqUpdate(book):
+    book.updateFreq = getUpdateDay(book) / FULLDAYS
+
+
+# 连续更新处理
+def serialUpdate(book, chapter):
+    if chapter.publishTime.day - book.lastUpdateTime.day <= 1:
+        book.serialUpdate += 1
+    else:
+        book.serialUpdate = 0
+
+
+# 订阅章节更新,发生更新时,排行榜表进行数据处理
+def sigleUpdate(book_id, newChapter_id):
+    book, chapter = getDateFromCatch(book_id, newChapter_id)
+
+    book_local = Charts.get(book.id)
+
+    # 非签约书籍,变为签约
+    if book.sign_status != book_local.sign_status:
+        book_local.sign_status = book.sign_status
+
+    # 更新天数增加1
+    # 判断更新未满30天
+    if book_local.updateDay < FULLUPDATEDAY:
+        addUpdateDay(book_local)
+        freqUpdate(book_local)
+
+    # 处理连更天数
+    serialUpdate(book_local, chapter)
+
+    # 刷新最后更新时间, 最后刷新时间就是新章节的发布时间
+    book_local.lastUpdateTime = chapter.publishTime
+
+# 获取book的章节列表
+def getChapters(book):
+    count = book.published_chapter_count
+    chapter_list = book.published_chapter_ids.range(0, count - 1)
+    return count, chapter_list
+
+
+# 判断最后更新时间和章节发布时间
+def judgeTime(last, chaTime):
+    '''
+    :param last: 书籍最后更新时间
+    :param chaTime: 章节发布时间
+    :return:    1 '时间一致"相等"'
+                2 '章节发布时间大于最后更新时间'
+                3 '章节发布时间超出更新范围'
+                4 '章节发布时间与最后更新时间在'小时\分\秒'判断时小于最后更新时间'
+    '''
+    if last == chaTime:
+        return 1
+    else:
+        if chaTime.year == last.year:
+            if chaTime.month == last.month:
+                if chaTime.day == last.day:
+                    if chaTime.hour == last.hour:
+                        if chaTime.minute == last.minute:
+                            if chaTime.second > last.second:
+                                return 2
+                            if chaTime.second < last.second:
+                                return 4
+                        else:
+                            if chaTime.minute > last.minute:
+                                return 2
+                            if chaTime.minute < last.minute:
+                                return 4
+                    else:
+                        if chaTime.hour > last.hour:
+                            return 2
+                        if chaTime.hour < last.hour:
+                            return 4
+                else:
+                    if chaTime.day > last.day:
+                        if chaTime.day - last.day == 1:
+                            return 2
+                        if chaTime.day - last.day > 1:
+                            return 3
+                    if chaTime.day < last.day:
+                        return 4
+            else:
+                return 3
+        else:
+            return 3
+
+
+# 更新排行榜表中所有时间相关信息
+def allUpdate():
+    # 获取排行榜表中所有书籍id
+    list = Charts.book_ids_list()
+
+    # 遍历排行榜表中书籍,匹配更新时间
+    for tempBookInfoLocal in list:
+
+        book = Book.get(tempBookInfoLocal.id)
+        count, chapter_list = getChapters(book)
+
+        # 非签约书籍,变为签约
+        if tempBookInfoLocal.sign_status != book.sign_status:
+            tempBookInfoLocal.sign_status = book.sign_status
+
+        # 判断章节id的发布时间与排行榜中最后更新时间
+        for chapter in chapter_list:
+            temp = Chapter.get(chapter)
+
+            # 有连续更新
+            if judgeTime(tempBookInfoLocal.lastUpdateTime, temp.publishTime) == 2:
+                tempBookInfoLocal.serialUpdate += 1
+
+                # 更新天数增加1
+                # 判断更新未满30天
+                if tempBookInfoLocal.updateDay < FULLUPDATEDAY:
+                    addUpdateDay(tempBookInfoLocal)
+                    freqUpdate(tempBookInfoLocal)
+
+                # 刷新最后更新时间, 最后刷新时间就是新章节的发布时间
+                tempBookInfoLocal.lastUpdateTime = temp.publishTime
+
+            # 无更新
+            if judgeTime(tempBookInfoLocal.lastUpdateTime, temp.publishTime) == 3:
+                tempBookInfoLocal.serialUpdate = 0
+
+                # 更新天数刷新
+                # 判断更新未满30天
+                if tempBookInfoLocal.updateDay < FULLUPDATEDAY:
+                    updateDayUpdate(tempBookInfoLocal)
+                    freqUpdate(tempBookInfoLocal)

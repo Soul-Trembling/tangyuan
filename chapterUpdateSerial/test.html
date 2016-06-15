@@ -1,4 +1,30 @@
-#encoding UTF-8
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <script src="//cdn.bootcss.com/avalon.js/1.4.5/avalon.js"></script>
+</head>
+<body>
+<div ms-controller="box">
+    <div style=" background: #a9ea00;" ms-css-width="w" ms-css-height="h"  ms-click="click"></div>
+    <p>{{ w }} x {{ h }}</p>
+    <p>W: <input type="text" ms-duplex="w" data-duplex-event="change"/></p>
+    <p>H: <input type="text" ms-duplex="h" /></p>
+</div>
+<script>
+    var vm = avalon.define({
+        $id: "box",
+        w: 100,
+        h: 100,
+        click: function() {
+            vm.w = parseFloat(vm.w) + 10;
+            vm.h = parseFloat(vm.h) + 10;
+        }
+    })
+</script>
+
+<!--#encoding UTF-8-->
 <style>
     .search-form {
         margin-bottom: 20px;
@@ -61,90 +87,97 @@
     }
 </style>
 <div ms-controller="core_book_search">
-    <div class="form-inline search-form">
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">作品ID</div>
-                <input type="text" class="form-control" ms-duplex="book_id">
-            </div>
-        </div>
+    <!--<div class="form-inline search-form">-->
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">作品ID</div>-->
+                <!--<input type="text" class="form-control" ms-duplex="book_id">-->
+            <!--</div>-->
+        <!--</div>-->
 
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">作品名关键字</div>
-                <input type="text" class="form-control" ms-duplex="keyword">
-            </div>
-        </div>
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">作品名关键字</div>-->
+                <!--<input type="text" class="form-control" ms-duplex="keyword">-->
+            <!--</div>-->
+        <!--</div>-->
 
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">总字数 &gt;</div>
-                <input type="text" class="form-control" ms-duplex="word_count_min">
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">总字数 &gt;</div>-->
+                <!--<input type="text" class="form-control" ms-duplex="word_count_min">-->
 
-                <div class="input-group-addon">&lt;</div>
-                <input type="text" class="form-control" ms-duplex="word_count_max">
+                <!--<div class="input-group-addon">&lt;</div>-->
+                <!--<input type="text" class="form-control" ms-duplex="word_count_max">-->
 
-                <div class="input-group-addon">字</div>
-            </div>
-        </div>
+                <!--<div class="input-group-addon">字</div>-->
+            <!--</div>-->
+        <!--</div>-->
 
-        <span class="warn-tip">*注：当作品ID存在时，其他条件自动失效。</span><br/>
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">签约状态</div>
-                <select class="form-control" ms-duplex="signed">
-                    <option value="-1">全部</option>
-                    <option value="1">签约</option>
-                    <option value="0">未签约</option>
-                </select>
-            </div>
-        </div>
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">创建时间</div>
-                <input type="text" class="form-control form-date" ms-duplex="create_time_start">
+        <!--<span class="warn-tip">*注：当作品ID存在时，其他条件自动失效。</span><br/>-->
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">签约状态</div>-->
+                <!--<select class="form-control" ms-duplex="signed">-->
+                    <!--<option value="-1">全部</option>-->
+                    <!--<option value="1">签约</option>-->
+                    <!--<option value="0">未签约</option>-->
+                <!--</select>-->
+            <!--</div>-->
+        <!--</div>-->
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">创建时间</div>-->
+                <!--<input type="text" class="form-control form-date" ms-duplex="create_time_start">-->
 
-                <div class="input-group-addon">-</div>
-                <input type="text" class="form-control form-date" ms-duplex="create_time_end">
-            </div>
-        </div>
+                <!--<div class="input-group-addon">-</div>-->
+                <!--<input type="text" class="form-control form-date" ms-duplex="create_time_end">-->
+            <!--</div>-->
+        <!--</div>-->
 
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">更新时间</div>
-                <input type="text" class="form-control form-date" ms-duplex="release_time_start">
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">更新时间</div>-->
+                <!--<input type="text" class="form-control form-date" ms-duplex="release_time_start">-->
 
-                <div class="input-group-addon">-</div>
-                <input type="text" class="form-control form-date" ms-duplex="release_time_end">
-            </div>
-        </div>
-        <div class="form-group">
-            <div class="input-group">
-                <div class="input-group-addon">结果按照</div>
-                <select class="form-control" ms-duplex="order_field">
-                    <option ms-repeat="order_field_list" ms-value="el.id">{{el.name}}</option>
-                </select>
-            </div>
-        </div>
+                <!--<div class="input-group-addon">-</div>-->
+                <!--<input type="text" class="form-control form-date" ms-duplex="release_time_end">-->
+            <!--</div>-->
+        <!--</div>-->
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<div class="input-group-addon">结果按照</div>-->
+                <!--<select class="form-control" ms-duplex="order_field">-->
+                    <!--<option ms-repeat="order_field_list" ms-value="el.id">{{el.name}}</option>-->
+                <!--</select>-->
+            <!--</div>-->
+        <!--</div>-->
 
-        <div class="form-group">
-            <div class="input-group">
-                <select class="form-control" ms-duplex="order_type">
-                    <option value="0">降序</option>
-                    <option value="1">升序</option>
-                </select>
-                <div class="input-group-addon">排列</div>
-            </div>
-        </div>
+        <!--<div class="form-group">-->
+            <!--<div class="input-group">-->
+                <!--<select class="form-control" ms-duplex="order_type">-->
+                    <!--<option value="0">降序</option>-->
+                    <!--<option value="1">升序</option>-->
+                <!--</select>-->
+                <!--<div class="input-group-addon">排列</div>-->
+            <!--</div>-->
+        <!--</div>-->
 
-        <button class="btn btn-success" ms-click="clickSearch">搜索</button>
+        <!--<button class="btn btn-success" ms-click="clickSearch">搜索</button>-->
 
-    </div>
+    <!--</div>-->
 
     <!--下面是搜索结果-->
 
     <div class="panel panel-default">
+        <h2>签约作品更新频次查看</h2>
+        <table class="search-form">
+            <input type="text" class="form-control" ms-duplex="updateday">
+            <input type="text" class="form-control" ms-duplex="updateday">
+            <button class="btn btn-success" ms-click="clickSearch">搜索</button>
+        </table>
         <table class="table table-striped table-bordered table-hover result-table">
+
             <thead>
                 <tr>
                     <th>ID</th>
@@ -155,14 +188,13 @@
                     <th>数据统计</th>
                     <th>时间</th>
                     <th>连更天数</th>
-                    <th ms-if="is_root==1">操作</th>
                 </tr>
             </thead>
             <tbody>
                 <tr ms-repeat-book="books">
                     <td>{{book.id}}</td>
                     <td>
-                        <!--?<a ms-href="/manage/core/book/read/{{book.id}}.html" target="_blank">《{{book.name}}》</a>-->
+                        ?<a ms-href="/manage/core/book/read/{{book.id}}.html" target="_blank">《{{book.name}}》</a>
                     </td>
                     <td>
                         <a class="pull-left" href="javascript:">{{book.author_tag.nickname}}</a>
@@ -249,10 +281,10 @@
                             <a>{{updateday}} 天</a>
                     </td>
 
-                    <td ms-if="is_root==1" class="sign_option">
-                        <button class="btn btn-small btn-danger"
-                                ms-click="deleteBook(book)">强制删除</button>
-                    </td>
+                    <!--<td ms-if="is_root==1" class="sign_option">-->
+                        <!--<button class="btn btn-small btn-danger"-->
+                                <!--ms-click="deleteBook(book)">强制删除</button>-->
+                    <!--</td>-->
                 </tr>
             </tbody>
         </table>
@@ -266,3 +298,6 @@
         <!--?TYM.setPageParams(${json_params, no_escape=True});-->
     <!--?});-->
 <!--?</script>-->
+
+</body>
+</html>

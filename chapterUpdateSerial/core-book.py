@@ -33,9 +33,13 @@ from riceball.tools import fx
 from riceball.tools.image import ImageUtil
 from riceball.tools.number import toint
 from riceball.tools.text import tobytes, tounicode, format_comment, \
-    char_count_ty
+    char_count_ty, display_length
 from ricebag.searchmodel.distributionchannel import DistributionChannelSearcher
 from ricebag.searchmodel.book import BookSearcher
+from ricebag.searchmodel import SearchUpdateNotification
+
+# ------ serial新增
+from riceball.storage.xmodel.charts import Charts
 
 __author__ = 'eisen'
 
@@ -224,6 +228,7 @@ def book_read_comment_post_json():
 
     return dict_result(comment.dump_detail())
 
+
 # ====================后台章节预览结束====================
 
 
@@ -273,6 +278,130 @@ def get_book_search_params(set_default_release_time_range=True):
     return params
 
 
+# --------------------------- serial ---------------------------
+
+def get_serial_params(set_default_release_time_range=True):
+    offset, count, _, _ = pagelet()
+    release_time_start, release_time_end = None, None
+    if set_default_release_time_range:
+        release_time_end = datetime.datetime.now()
+        release_time_start = release_time_end - datetime.timedelta(days=1)
+
+    params = {
+        'book_id': param('book_id', None, fx.p(toint, default=None)),
+        'keyword': param('keyword', None, tounicode),
+        'create_time_start': get_valid_datetime_str('create_time_start'),
+        'create_time_end': get_valid_datetime_str('create_time_end'),
+        'release_time_start': get_valid_datetime_str('release_time_start',
+                                                     release_time_start),
+        'release_time_end': get_valid_datetime_str('release_time_end',
+                                                   release_time_end),
+        'word_count_max': param('word_count_max', None,
+                                fx.p(toint, default=None)),
+        'word_count_min': param('word_count_min', None,
+                                fx.p(toint, default=None)),
+        'offset': offset,
+        'count': count,
+        'order_field': param('order_field', 'release_time_value', tounicode),
+        'order_type': param('order_type', 0, toint),
+        'signed': param('signed', None, fx.p(toint, default=None)),
+        'serial_update': 0
+    }
+
+    return params
+
+
+@get(request_path('/serial.html'))
+@set_response(tpl_path('/serial'))
+def book_serial_html():
+    params = get_serial_params()
+    manager_id = getattr(request, 'uid', 0)
+    manager = ManageUser.get(manager_id or 0)
+    is_root = 0
+    if manager and (manager.role == ManageUser.ROLE_ROOT or "force_delete_book" in manager.permission_ids
+                    or "force_rename_book" in manager.permission_ids):
+        is_root = 1
+    params['order_field_list'] = ManageBook.get_search_order_field_list()
+    params['is_root'] = is_root
+    # print '--'*20, params
+    return {'json_params': json.dumps(params)}
+
+
+@get(request_path('/serial.json'))
+@set_response()
+def book_serial_json():
+    print '='*50, 1
+    fmt = '%Y-%m-%d %H:%M:%S'
+    # params = get_book_search_params(False)
+    params = get_serial_params(False)
+    print '=' * 50, params
+
+    def change_param_to_datetime(param_name):
+        p = params[param_name]
+        params[param_name] = datetime.datetime.strptime(p, fmt) if p else None
+
+    # 转换查询参数
+    change_param_to_datetime('create_time_start')
+    change_param_to_datetime('create_time_end')
+    change_param_to_datetime('release_time_start')
+    change_param_to_datetime('release_time_end')
+    order_field_str = params['order_field']
+    order_type_str = ['DESC', 'ASC'][params['order_type']]
+
+    # 查询符合条件的数据
+
+    print '=' * 50, 2
+    book_ids, total, offset = Charts.book_ids_list(), 0, 1
+    #ManageBook.query_books(params, order_field_str,order_type_str)
+    print '=' * 50, 3
+    book_dict = Book.gets(*book_ids)
+    # print 'book'*10, book_dict
+    """ :type: dict[int, Book] """
+    dump_attrs = [
+        'author_tag', 'word_count', 'image_count', 'tag_words',
+        'create_time_value', 'comment_count', 'published_chapter_count',
+        'read_count', 'pumpkin_info', 'favorer_count', 'share_count',
+        'rewarded_coins', 'finished', 'starred', 'signed', 'top_level_info', 'channels']
+    books = (book_dict[fi_id] for fi_id in book_ids if book_dict.get(fi_id))
+    print '=' * 50, 4
+
+    print '=' * 50, 5
+    # books_dump = [fi_book.dump_tag(*dump_attrs) for fi_book in books]
+
+    books_dump = []
+    for fi_book in books:
+        temp = fi_book.dump_tag(*dump_attrs)
+        temp['serial_update'] = Charts.fetch(fi_book.id).serialUpdate
+        print '-'*30, temp
+        books_dump.append(temp)
+    print '-' * 30, 'temp_books_dump', books_dump[0]
+
+    print '=' * 50, 6, '!!!!!!!!!!!!!!!!!!books_dump-type ', type(books_dump), '------------ books_dump - date ', books_dump[0]
+    params['books'] = books_dump
+    params['total'] = total
+    params['offset'] = offset
+
+    # print params
+
+    # 将日期时间转换回字符串
+    def format_time_to_params(param_name):
+        t = params[param_name]
+        params[param_name] = t.strftime(fmt) if t else ''
+
+    format_time_to_params('create_time_start')
+    format_time_to_params('create_time_end')
+    format_time_to_params('release_time_start')
+    format_time_to_params('release_time_end')
+    print '=' * 50, 7
+    print 'params ', params
+    result = dict_result(params)
+    # print '=' * 50, result
+    return result
+
+
+# --------------------------- serial ---------------------------
+
+
 @get(request_path('/search.html'))
 @set_response(tpl_path('/search'))
 def book_search_html():
@@ -280,7 +409,8 @@ def book_search_html():
     manager_id = getattr(request, 'uid', 0)
     manager = ManageUser.get(manager_id or 0)
     is_root = 0
-    if manager and (manager.role == ManageUser.ROLE_ROOT or "force_delete_book" in manager.permission_ids):
+    if manager and (manager.role == ManageUser.ROLE_ROOT or "force_delete_book" in manager.permission_ids
+                    or "force_rename_book" in manager.permission_ids):
         is_root = 1
     params['order_field_list'] = ManageBook.get_search_order_field_list()
     params['is_root'] = is_root
@@ -352,9 +482,59 @@ def book_force_delete_json():
         return Error(1, u'没有权限').dump()
 
     book.delete()
-    change_attrs = ['book_id:%s'%book_id]
+    change_attrs = ['book_id:%s' % book_id]
     manage_operation_log(*change_attrs)
     return dict_result(None)
+
+
+@get(request_path('/rename.html'))
+@set_response(tpl_path('/rename'),
+              layout_processor=widget_dialog_layout_processor)
+def book_force_rename_html():
+    book_id = param('book_id', 0, toint)
+    book = Book.get(book_id)
+    ret = {
+        'author_name': book.author.nickname,
+        'book_id': book_id,
+        'book_name': book.name,
+        'book_summary': book.summary,
+    }
+    return widget_result('book_rename',
+                         u'强制修改书籍名称',
+                         ret).dump()
+
+
+@post(request_path('/force_rename.json'))
+@set_response()
+def book_force_rename_json():
+    manager_id = getattr(request, 'uid', 0)
+    manager = ManageUser.get(manager_id or 0)
+    is_root = 0
+    if manager and (manager.role == ManageUser.ROLE_ROOT or "force_rename_book" in manager.permission_ids):
+        is_root = 1
+    if not is_root:
+        return Error(1, u'没有权限').dump()
+    book_id = param('book_id', 0, lambda x: x and int(x))
+    book_name = param('book_name', '')
+    book_name = tounicode(book_name) if book_name else book_name
+    if not book_name:
+        return Error(1, u'请输入书籍名称').dump()
+    if display_length(book_name) > 24:
+        return Error(1, u'书籍名称应小于12字符').dump()
+    book = Book.get(book_id or 0)
+    if not book:
+        return Error(1, u'不存在该书籍').dump()
+
+    book.name = book_name
+    book.put()
+
+    ManageOperationLog.log(ManageOperationLog.OPERATION_BOOK_RENAME,
+                           book.author_id, Book.__name__, book.id,
+                           book.dump_detail())
+    # 通知索引更新
+    SearchUpdateNotification.send(SearchUpdateNotification.MODEL_NAME_BOOK, book.id,
+                                  SearchUpdateNotification.ACTION_UPDATE)
+    return dict_result({"book_name": book.name})
 
 
 @post(request_path('/tag/change/<book_id:int>.json'))
@@ -548,7 +728,7 @@ def widget_reward_json():
                 'offset': offset,
                 'count': count
             }
-            tmp_gifts,total = ManageBookGiftCount.get_list(search_parms)
+            tmp_gifts, total = ManageBookGiftCount.get_list(search_parms)
             gifts['gifts'] = tmp_gifts
     elif select_type == 'contributor':
         contributor_zset = BookContributorsZSet.get(book_id)
@@ -577,6 +757,7 @@ def widget_reward_json():
         'gifts': gifts,
         'contributors': contributors,
     })
+
 
 # ====================后台作品搜索结束====================
 
@@ -676,8 +857,8 @@ def book_create_json(user_id):
         cover_data = manage_temp_file.file_data
 
     book, error_json = booklogic.create_book(user=user, name=name, summary=summary, cover_data=cover_data,
-                                              create_timestamp=create_timestamp, tag_list=tag_list,
-                                              public=public, from_admin=True)
+                                             create_timestamp=create_timestamp, tag_list=tag_list,
+                                             public=public, from_admin=True)
 
     if error_json:
         return error_json
@@ -751,7 +932,8 @@ def update_book_info(book_id):
     if manage_temp_file and manage_temp_file.file_id:
         cover_data = manage_temp_file.file_data
 
-    tag_list = param('tags', None, lambda x: [fi_i.strip() for fi_i in tounicode(x).split(',') if fi_i and fi_i.strip()])
+    tag_list = param('tags', None,
+                     lambda x: [fi_i.strip() for fi_i in tounicode(x).split(',') if fi_i and fi_i.strip()])
 
     send_sensitive_mail(request.uid, u'更新作品信息《%s》(%s)' % (book.name, book.id))
 
@@ -779,9 +961,9 @@ def book_chapters_json(book_id):
     chapter_dict = Chapter.gets(*chapter_ids)
 
     chapters = [chapter_dict[fi_cid].dump_tag('author_tag', 'order_value')
-                     for fi_cid in chapter_ids if chapter_dict.get(fi_cid)]
+                for fi_cid in chapter_ids if chapter_dict.get(fi_cid)]
 
-    sort_chapters = sorted(chapters, key= lambda chapter: chapter['order_value'], reverse=True)
+    sort_chapters = sorted(chapters, key=lambda chapter: chapter['order_value'], reverse=True)
 
     return dict_result({
         'chapters': sort_chapters
@@ -838,7 +1020,7 @@ def book_chapter_create(book_id):
 
     # 成功创建章节后上传内容
     # 生成一份完整的content html文件内容
-    chapter_content, plain_content = ChapterContentUtil.\
+    chapter_content, plain_content = ChapterContentUtil. \
         gen_formatted_chapter_content_from_pure_content(chapter.title, content, timestamp=now, from_manage=True)
     file_data = tobytes(chapter_content)
     # 如果是图片章节，需要上传附件
@@ -888,7 +1070,8 @@ def book_chapter_delete(book_id, chapter_id):
 
     send_sensitive_mail(request.uid, u'删除章节《%s》(%s)' % (chapter.title, chapter.id))
 
-    success, error_json = booklogic.delete_chapter(chapter_id=chapter_id, book_id=book_id, user_id=chapter.book.author_id,
+    success, error_json = booklogic.delete_chapter(chapter_id=chapter_id, book_id=book_id,
+                                                   user_id=chapter.book.author_id,
                                                    from_admin=False)
     if error_json:
         return error_json
@@ -922,11 +1105,12 @@ def book_save_chapter(book_id, chapter_id):
     # 上传章节内容
     publish = True
     authorspeak = chapter.authorspeak_content
-    chapter_content, plain_content = ChapterContentUtil.\
+    chapter_content, plain_content = ChapterContentUtil. \
         gen_formatted_chapter_content_from_pure_content(chapter.title, content, timestamp=chapter.timestamp,
                                                         from_manage=True, authorspeak=authorspeak)
     file_data = tobytes(chapter_content)
-    chapter, result_attachments, error_json = booklogic.upload_chapter_content(book_id, chapter.id, chapter.book.author_id,
+    chapter, result_attachments, error_json = booklogic.upload_chapter_content(book_id, chapter.id,
+                                                                               chapter.book.author_id,
                                                                                file_data=file_data,
                                                                                attachments=None,
                                                                                from_admin=True)
